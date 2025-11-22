@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Luyện Morse — Chuẩn & Ổn định</title>
+  <style>
+/* ======= PHONG CÁCH CAM - ĐEN KỸ NĂNG TRẺ (TỔNG HỢP 3 STYLE) ======= */
+:root{
+  --orange1:#ff7b00; /* cam tươi */
+  --orange2:#ff5200; /* cam đậm SAR */
+  --orangeNeon:#ffa533; /* neon */
+  --black:#0c0c0c;
+  --gray:#1a1a1a;
+  --card:#111;
+  --border:#222;
+}
+body{
+  font-family: 'Inter', sans-serif;
+  background: var(--black);
+  color:#eee;
+  padding:20px;
+}
+.wrap{max-width:900px;margin:0 auto}
+
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:20px;
+  margin-bottom:20px;
+  box-shadow:0 0 18px #0007;
+}
+
+h1,h3,h4{
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:1px;
+  background:linear-gradient(90deg,var(--orange2),var(--orangeNeon));
+  -webkit-background-clip:text;
+  color:transparent;
+}
+
+button{
+  background:linear-gradient(90deg,var(--orange1),var(--orange2));
+  border:none;
+  color:#fff;
+  padding:10px;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:700;
+  letter-spacing:0.5px;
+  transition:0.15s;
+}
+button:hover{
+  transform:scale(1.05);
+  box-shadow:0 0 12px var(--orangeNeon);
+}
+button.small{
+  background:#333;
+  color:#ccc;
+}
+button.small:hover{
+  background:#444;
+}
+
+input,select{
+  width:100%;padding:12px;margin-top:8px;border-radius:6px;
+  border:1px solid #333;
+  background:#0f0f0f;
+  color:#ffa;
+  font-size:15px;
+}
+.row{display:flex;gap:12px}
+.muted{color:#999;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>🔥 Luyện Morse — Phiên bản Ổn định</h1>
+    
+  </div>
+
+  <div class="card" id="userLogin">
+    <h3>Người dự thi</h3>
+    <input id="username" placeholder="Tên của bạn..." />
+    <div class="row">
+      <button onclick="enterUser()">Vào thi</button>
+      <button class="small" onclick="showAdminLogin()">Admin</button>
+    </div>
+  </div>
+
+  <div class="card" id="userPage" style="display:none">
+    <h3 id="welcome">Xin chào</h3>
+    <p class="muted">Nghe Morse và nhập bạch văn bạn nghe được.</p>
+    <input id="answerInput" placeholder="Nhập đáp án..." />
+    <div class="row">
+      <button onclick="submitAnswer()">Nộp bài</button>
+      <button class="small" onclick="userLogout()">Thoát</button>
+    </div>
+    <p id="result"></p>
+  </div>
+
+  <div class="card" id="adminLogin" style="display:none">
+    <h3>Đăng nhập Admin</h3>
+    <input type="password" id="adminPass" placeholder="Mật khẩu admin" />
+    <div class="row">
+      <button onclick="checkAdmin()">Đăng nhập</button>
+      <button class="small" onclick="cancelAdmin()">Quay lại</button>
+    </div>
+  </div>
+
+  <div class="card" id="adminPanel" style="display:none">
+    <h3>ADMIN</h3>
+    <input id="morseText" placeholder="Nhập bạch văn >= 5 ký tự" />
+    <select id="speed">
+      <option value="10">Tốc độ 10</option>
+      <option value="7">Tốc độ 7</option>
+      <option value="5">Tốc độ 5</option>
+      <option value="3">Tốc độ 3</option>
+    </select>
+
+    <label class="muted" style="margin-top:8px;display:block;">Hệ số tăng tốc (Admin)</label>
+    <input id="speedBoost" type="number" value="1" min="1" max="5" step="1" />
+    <div class="row">
+      <button onclick="playMorse()">Phát Morse</button>
+      <button class="small" onclick="stopAll()" style="background:#a33">Dừng</button>
+    </div>
+
+    <h4>Danh sách đúng</h4>
+    <div id="correctList" class="muted"></div>
+    <button onclick="adminLogout()" class="small" style="margin-top:10px;background:#444">Đăng xuất</button>
+  </div>
+</div>
+
+<script>
+// -------------------- DATA --------------------
+const ADMIN_PASS = "205206";
+let currentText = "";
+let activeOscillators = [];
+let correctList = JSON.parse(localStorage.getItem("correctList")||"[]");
+
+function $(id){return document.getElementById(id)}
+
+function escapeHtml(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+
+function renderCorrect(){ $('correctList').innerHTML = correctList.length===0 ? "<i>Chưa ai trả lời đúng.</i>" : correctList.map((n,i)=>`${i+1}. ${escapeHtml(n)}`).join('<br>'); }
+renderCorrect();
+
+// -------------------- ENTER KEY SUPPORT --------------------
+// Nhấn Enter tại ô tên → Vào thi
+$("username").addEventListener('keypress', e=>{ if(e.key==='Enter') enterUser(); });
+// Nhấn Enter tại ô mật khẩu admin → Đăng nhập
+$("adminPass").addEventListener('keypress', e=>{ if(e.key==='Enter') checkAdmin(); });
+// Nhấn Enter tại ô nhập đáp án → Nộp bài
+$("answerInput").addEventListener('keypress', e=>{ if(e.key==='Enter') submitAnswer(); });
+
+// -------------------- USER --------------------
+function enterUser(){
+  const name = $('username').value.trim();
+  if(!name) return alert("Nhập tên!");
+  localStorage.setItem('currentUser', name);
+  $('userLogin').style.display='none';
+  $('userPage').style.display='block';
+  $('welcome').innerText = "Xin chào, " + name;
+}
+
+function userLogout(){
+  localStorage.removeItem('currentUser');
+  $('userPage').style.display='none';
+  $('userLogin').style.display='block';
+}
+
+function submitAnswer(){
+  const ans = $('answerInput').value.trim().toLowerCase();
+  if(!currentText) return alert("Admin chưa phát Morse!");
+
+  const user = localStorage.getItem("currentUser") || "Khách";
+
+  if(ans === currentText.toLowerCase()){
+    $('result').innerHTML = '✔ Chính xác!';
+    if(!correctList.includes(user)) correctList.push(user);
+    localStorage.setItem('correctList', JSON.stringify(correctList));
+    renderCorrect();
+  } else $('result').innerHTML = '❌ Sai rồi!';
+}
+
+// -------------------- ADMIN --------------------
+function showAdminLogin(){ $('userLogin').style.display='none'; $('adminLogin').style.display='block'; }
+function cancelAdmin(){ $('adminLogin').style.display='none'; $('userLogin').style.display='block'; }
+function checkAdmin(){ if($('adminPass').value===ADMIN_PASS){ $('adminPass').value=''; $('adminLogin').style.display='none'; $('adminPanel').style.display='block'; } else alert("Sai mật khẩu!"); }
+function adminLogout(){ $('adminPanel').style.display='none'; $('userLogin').style.display='block'; }
+
+// -------------------- MORSE --------------------
+const MORSE_MAP = {
+ a:'.-',b:'-...',c:'-.-.',d:'-..',e:'.',f:'..-.',g:'--.',h:'....',i:'..',j:'.---',k:'-.-',l:'.-..',m:'--',n:'-.',o:'---',p:'.--.',q:'--.-',r:'.-.',s:'...',t:'-',u:'..-',v:'...-',w:'.--',x:'-..-',y:'-.--',z:'--..',
+ '0':'-----','1':'.----','2':'..---','3':'...--','4':'....-','5':'.....','6':'-....','7':'--...','8':'---..','9':'----.',
+ '.':'.-.-.-', ',':'--..--', '?':'..--..', '!':'-.-.--', '/':'-..-.', '=':'-...-', '-':'-....-', '"':'.-..-.', '\'':'.----.',
+ '&':'.-...', ':':'---...', ';':'-.-.-.', '(': '-.--.', ')':'-.--.-', ' ': null,
+ "'": '...',    // sắc = s
+ "`": '..-.',   // huyền = f
+ "?": '.-.',    // hỏi = r
+ "~": '-..-',   // ngã = x
+ ".": '.---'     // nặng = j
+};
+
+function removeVietnamese(str){
+  const telexMap = {
+    'á': "a'", 'à': 'a`', 'ả': 'a?', 'ã': 'a~', 'ạ': 'a.',
+    'â': 'aa', 'ấ': "aa'", 'ầ': 'aa`', 'ẩ': 'aa?', 'ẫ': 'aa~', 'ậ': 'aa.',
+    'ă': 'aw', 'ắ': "aw'", 'ằ': 'aw`', 'ẳ': 'aw?', 'ẵ': 'aw~', 'ặ': 'aw.',
+    'é': "e'", 'è': 'e`', 'ẻ': 'e?', 'ẽ': 'e~', 'ẹ': 'e.',
+    'ê': 'ee', 'ế': "ee'", 'ề': 'ee`', 'ể': 'ee?', 'ễ': 'ee~', 'ệ': 'ee.',
+    'í': "i'", 'ì': 'i`', 'ỉ': 'i?', 'ĩ': 'i~', 'ị': 'i.',
+    'ó': "o'", 'ò': 'o`', 'ỏ': 'o?', 'õ': 'o~', 'ọ': 'o.',
+    'ô': 'oo', 'ố': "oo'", 'ồ': 'oo`', 'ổ': 'oo?', 'ỗ': 'oo~', 'ộ': 'oo.',
+    'ơ': 'ow', 'ớ': "ow'", 'ờ': 'ow`', 'ở': 'ow?', 'ỡ': 'ow~', 'ợ': 'ow.',
+    'ú': "u'", 'ù': 'u`', 'ủ': 'u?', 'ũ': 'u~', 'ụ': 'u.',
+    'ư': 'uw', 'ứ': "uw'", 'ừ': 'uw`', 'ử': 'uw?', 'ữ': 'uw~', 'ự': 'uw.',
+    'ý': "y'", 'ỳ': 'y`', 'ỷ': 'y?', 'ỹ': 'y~', 'ỵ': 'y.',
+    'đ': 'dd'
+  };
+  return str.replace(/[áàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ]/g,
+    c => telexMap[c]
+  );
+}
+
+function playMorse(){
+  stopAll();
+  currentText = $('morseText').value.trim();
+  if(currentText.length < 5) return alert("Bạch văn phải >= 5 ký tự!");
+// GỬI LỆNH PHÁT MORSE TỚI SERVER
+socket.emit("adminPlayMorse", {
+  text: currentText,
+  speed: $('speed').value,
+  boost: $('speedBoost').value
+});
+  let unit = {10:80,7:110,5:140,3:180}[$('speed').value];
+  const boost = parseInt($('speedBoost').value) || 1;
+  unit = Math.max(20, unit / boost);
+  const ctx = new (window.AudioContext||window.webkitAudioContext)();
+  if(ctx.state === 'suspended') ctx.resume();
+  let t = ctx.currentTime + 0.03;
+
+  const norm = removeVietnamese(currentText.toLowerCase());
+
+  for(const ch of norm){
+    const code = MORSE_MAP[ch];
+    if(!code){ t += (unit*3)/1000; continue; }
+
+    for(const mark of code){
+      const dur = mark==='.' ? unit/1000 : (unit*3)/1000;
+
+      const osc = ctx.createOscillator();
+      osc.type='sine';
+      osc.frequency.value=750; // âm chuẩn như web mẫu
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(1, t);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(t);
+      osc.stop(t+dur);
+      activeOscillators.push(osc);
+
+      t += dur + unit/1000;
+    }
+    t += (unit*2)/1000;
+  }
+}
+
+function stopAll(){ for(const o of activeOscillators){ try{o.stop()}catch(e){} } activeOscillators=[]; }
+</script>
+<script>
+// Nhận tín hiệu từ server để phát Morse
+socket.on("playMorseForUsers", function(data){
+  currentText = data.text;
+  userPlayMorse(data);
+});
+
+// Hàm phát Morse cho user
+function userPlayMorse(data){
+  const { text, speed, boost } = data;
+
+  let unit = {10:80,7:110,5:140,3:180}[speed];
+  let finalSpeed = Math.max(20, unit / boost);
+
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  let t = ctx.currentTime + 0.03;
+
+  const norm = removeVietnamese(text.toLowerCase());
+
+  for(const ch of norm){
+    const code = MORSE_MAP[ch];
+    if(!code){ t += (finalSpeed*3)/1000; continue; }
+
+    for(const mark of code){
+      const dur = mark==='.' ? finalSpeed/1000 : (finalSpeed*3)/1000;
+
+      const osc = ctx.createOscillator();
+      osc.frequency.value = 750;
+      const gain = ctx.createGain();
+      gain.gain.value = 1;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(t);
+      osc.stop(t + dur);
+
+      t += dur + finalSpeed/1000;
+    }
+    t += (finalSpeed*2)/1000;
+  }
+}
+</script>
+
+</body>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+</script>
+
+</html>
