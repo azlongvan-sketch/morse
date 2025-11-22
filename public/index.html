@@ -314,7 +314,48 @@ function userPlayMorse(data){
   }
 }
 </script>
+<script>
+// Nhận tín hiệu từ server để phát Morse cho user
+socket.on("playMorseForUsers", function(data){
+  currentText = data.text;
+  userPlayMorse(data);
+});
 
+// Hàm phát Morse dành cho user
+function userPlayMorse(data){
+  const { text, speed, boost } = data;
+
+  let unit = {10:80,7:110,5:140,3:180}[speed];
+  let finalSpeed = Math.max(20, unit / boost);
+
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  let t = ctx.currentTime + 0.03;
+
+  const norm = removeVietnamese(text.toLowerCase());
+
+  for(const ch of norm){
+    const code = MORSE_MAP[ch];
+    if(!code){ t += (finalSpeed*3)/1000; continue; }
+
+    for(const mark of code){
+      const dur = mark==='.' ? finalSpeed/1000 : (finalSpeed*3)/1000;
+
+      const osc = ctx.createOscillator();
+      osc.frequency.value = 750;
+      const gain = ctx.createGain();
+      gain.gain.value = 1;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(t);
+      osc.stop(t + dur);
+
+      t += dur + finalSpeed/1000;
+    }
+    t += (finalSpeed*2)/1000;
+  }
+}
+</script>
 </body>
 <script src="/socket.io/socket.io.js"></script>
 <script>
